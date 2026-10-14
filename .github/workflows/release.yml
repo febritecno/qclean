@@ -1,0 +1,181 @@
+name: Release
+
+on:
+  push:
+    branches: [main]
+
+# Least privilege: only the publish job needs write access.
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    name: Determine version
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.decide.outputs.release }}
+      version: ${{ steps.v.outputs.version }}
+      tag: ${{ steps.v.outputs.tag }}
+      first: ${{ steps.v.outputs.first }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+      - id: v
+        name: Compute next semantic version
+        run: node scripts/next-version.mjs
+      - id: decide
+        name: Decide whether to release
+        env:
+          RELEASABLE: ${{ steps.v.outputs.releasable }}
+        run: |
+          msg="$(git log -1 --pretty=%s)"
+          if [[ "$msg" == chore\(release\):* ]]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: head commit is a release bump."
+          elif git describe --exact-match --tags HEAD >/dev/null 2>&1; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: HEAD is already tagged."
+          elif [[ "$RELEASABLE" != "true" ]]; then
+            echo "release=false" >> "$GITHUB_OUTPUT"
+            echo "Skipping: no feat/fix/perf/breaking commits since the last tag."
+          else
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Build universal bundle
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin, x86_64-apple-darwin
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: npm install --no-audit --no-fund
+
+      - name: Stamp version ${{ needs.version.outputs.version }}
+        run: node scripts/set-version.mjs "${{ needs.version.outputs.version }}"
+
+      # Full history (fetched above) lets this reproduce the same notes the
+      # "Determine version" job computed, for the updater's "what's new".
+      - name: Regenerate release notes
+        run: node scripts/next-version.mjs
+        env:
+          APPLE_SIGNED: ${{ vars.ENABLE_APPLE_SIGNING }}
+
+      - name: Tests must pass before packaging
+        run: |
+          npm run test
+          cd src-tauri && cargo test --workspace
+
+      # Signing + notarisation are opt-in. Two mutually-exclusive steps so the
+      # Apple env vars are *absent* (not just empty) for the default build —
+      # tauri-bundler treats an empty APPLE_CERTIFICATE as a real one and fails.
+
+      - name: Build (ad-hoc signed)
+        if: vars.ENABLE_APPLE_SIGNING != 'true'
+        run: npm run tauri build -- --target universal-apple-darwin
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Build (Developer ID signed + notarised)
+        if: vars.ENABLE_APPLE_SIGNING == 'true'
+        run: npm run tauri build -- --target universal-apple-darwin
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Collect artifacts
+        run: |
+          set -euo pipefail
+          v="${{ needs.version.outputs.version }}"
+          out="$GITHUB_WORKSPACE/dist-artifacts"
+          mkdir -p "$out"
+          base=src-tauri/target/universal-apple-darwin/release/bundle
+          cp "$base"/dmg/*.dmg "$out/QClean_${v}_universal.dmg"
+          ditto -c -k --sequesterRsrc --keepParent "$base/macos/QClean.app" "$out/QClean_${v}_universal.app.zip"
+          node scripts/updater-manifest.mjs "$v" "$base" "$out"
+          ( cd "$out" && shasum -a 256 ./* | tee SHA256SUMS.txt )
+          ls -lh "$out"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: qclean-${{ needs.version.outputs.version }}
+          path: dist-artifacts/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: Tag & GitHub Release
+    needs: [version, build]
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: qclean-${{ needs.version.outputs.version }}
+          path: dist-artifacts
+
+      - name: Regenerate release notes
+        run: node scripts/next-version.mjs
+        env:
+          APPLE_SIGNED: ${{ vars.ENABLE_APPLE_SIGNING }}
+
+      - name: Create and push tag (build already succeeded)
+        env:
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a "$TAG" -m "QClean $TAG" "${GITHUB_SHA}"
+          git push origin "$TAG"
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.version.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            --title "QClean $TAG" \
+            --notes-file RELEASE_NOTES.md \
+            --target "${GITHUB_SHA}" \
+            dist-artifacts/*

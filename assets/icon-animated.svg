@@ -1,0 +1,83 @@
+<svg viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="t">
+  <title id="t">QClean</title>
+  <!-- Animated version of assets/icon.svg. The Q draws itself, its tail sweeps out,
+       a shine crosses the tile and the sparkle keeps twinkling. CSS animations run
+       even when loaded through <img>; reduced motion shows the finished mark. -->
+  <style>
+    .ring, .tail { stroke-dasharray: 1 1; stroke-dashoffset: 1; }
+    .ring { animation: draw 1.1s cubic-bezier(.65,0,.35,1) .15s forwards; }
+    .tail { animation: draw .45s cubic-bezier(.23,1,.32,1) 1.15s forwards; }
+    .mark { transform-origin: 488px 488px; animation: settle 1.6s cubic-bezier(.23,1,.32,1) both; }
+    .shine { animation: shine 1.4s cubic-bezier(.65,0,.35,1) 1.35s both; }
+    .spark { transform-box: fill-box; transform-origin: center; opacity: 0;
+             animation: pop .5s cubic-bezier(.34,1.56,.64,1) 1.5s forwards,
+                        twinkle 2.8s ease-in-out 2.4s infinite; }
+    .spark-sm { transform-box: fill-box; transform-origin: center; opacity: 0;
+                animation: twinkle-sm 2.8s ease-in-out 2.1s infinite; }
+    @keyframes draw { to { stroke-dashoffset: 0; } }
+    @keyframes settle { from { transform: rotate(-24deg) scale(.92); } to { transform: none; } }
+    @keyframes shine { from { transform: translateX(-900px); } to { transform: translateX(900px); } }
+    @keyframes pop { from { opacity: 0; transform: scale(0) rotate(-90deg); } to { opacity: 1; transform: none; } }
+    @keyframes twinkle { 0%, 100% { transform: none; } 50% { transform: scale(.78) rotate(45deg); } }
+    @keyframes twinkle-sm { 0%, 30%, 100% { opacity: 0; transform: scale(.2); } 45% { opacity: .9; transform: scale(1); } 60% { opacity: 0; transform: scale(.2); } }
+    @media (prefers-reduced-motion: reduce) {
+      * { animation: none !important; }
+      .ring, .tail { stroke-dashoffset: 0; }
+      .spark { opacity: 1; }
+    }
+  </style>
+  <defs>
+    <linearGradient id="bg" x1="200" y1="96" x2="824" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16302A"/>
+      <stop offset="1" stop-color="#08110F"/>
+    </linearGradient>
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(300 230) rotate(50) scale(560 420)">
+      <stop stop-color="#3ECFA2" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#3ECFA2" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="mark" x1="300" y1="290" x2="740" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7BE6C4"/>
+      <stop offset="1" stop-color="#2FBF93"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#EAFBF4" stop-opacity="0"/>
+      <stop offset=".5" stop-color="#EAFBF4" stop-opacity=".14"/>
+      <stop offset="1" stop-color="#EAFBF4" stop-opacity="0"/>
+    </linearGradient>
+    <clipPath id="tile">
+      <rect x="96" y="96" width="832" height="832" rx="218"/>
+    </clipPath>
+    <filter id="shadow" x="180" y="180" width="700" height="700" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#020705" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <rect x="96" y="96" width="832" height="832" rx="218" fill="url(#bg)"/>
+  <rect x="96" y="96" width="832" height="832" rx="218" fill="url(#light)"/>
+  <rect x="98.5" y="98.5" width="827" height="827" rx="215.5"
+        stroke="#A7F3D9" stroke-opacity="0.16" stroke-width="5"/>
+
+  <!-- The Q. The ring starts at the tail's crossing (45°) so the stroke closes into it. -->
+  <g filter="url(#shadow)">
+    <g class="mark">
+      <path class="ring" pathLength="1" stroke="url(#mark)" stroke-width="88" stroke-linecap="round"
+            d="M629.4 629.4 A200 200 0 1 1 629.42 629.38"/>
+      <path class="tail" pathLength="1" d="M538 538 L752 752"
+            stroke="url(#mark)" stroke-width="88" stroke-linecap="round"/>
+    </g>
+  </g>
+
+  <!-- A diagonal shine wipes across once the mark is drawn -->
+  <g clip-path="url(#tile)">
+    <g transform="rotate(20 512 512)">
+      <rect class="shine" x="300" y="-100" width="260" height="1300" fill="url(#sheen)"/>
+    </g>
+  </g>
+
+  <!-- The sparkle: what is left after cleaning -->
+  <path class="spark" d="M770 222 L790 276 L844 296 L790 316 L770 370 L750 316 L696 296 L750 276 Z"
+        fill="#EAFBF4"/>
+  <path class="spark-sm" d="M690 410 L697 429 L716 436 L697 443 L690 462 L683 443 L664 436 L683 429 Z"
+        fill="#A7F3D9"/>
+</svg>

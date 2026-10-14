@@ -1,0 +1,120 @@
+# QClean — Code Signing & Notarisation
+
+The release workflow is already wired for Developer ID signing + notarisation.
+It's **opt-in**: it stays ad-hoc-signed until you add the secrets below and set
+one repository variable. Nothing in the code changes.
+
+> Why bother: an ad-hoc-signed build gets a new code identity every time it's
+> rebuilt, so macOS won't carry a **Full Disk Access** grant across updates —
+> you'd re-add QClean in System Settings after every release. A notarised
+> Developer ID build has a stable identity and the grant persists.
+
+---
+
+## One-time: create the certificate
+
+You need an **Apple Developer Program** membership.
+
+### 1. Team ID
+<https://developer.apple.com/account> ▸ **Membership** ▸ *Team ID* (10 chars, e.g. `AB12CD34EF`).
+
+### 2. "Developer ID Application" certificate
+
+1. Keychain Access ▸ menu **Certificate Assistant ▸ Request a Certificate From a
+   Certificate Authority** ▸ enter your email, choose *Saved to disk* ▸ save
+   `CertificateSigningRequest.certSigningRequest`.
+2. <https://developer.apple.com/account/resources/certificates> ▸ **+** ▸
+   **Developer ID Application** ▸ upload the CSR ▸ download the `.cer`.
+3. Double-click the `.cer` to add it to your login keychain.
+4. In Keychain Access ▸ *My Certificates*, find
+   **`Developer ID Application: Your Name (TEAMID)`**, right-click ▸ **Export…**
+   ▸ save as `qclean-signing.p12` with a password (remember it).
+
+### 3. App-specific password (for notarisation)
+<https://account.apple.com> ▸ **Sign-In and Security ▸ App-Specific Passwords** ▸
+**+** ▸ label it `qclean-notary` ▸ copy the `xxxx-xxxx-xxxx-xxxx` value.
+
+### 4. Base64 the certificate
+```bash
+base64 -i qclean-signing.p12 | pbcopy
+```
+
+---
+
+## Add to GitHub
+
+**Settings ▸ Secrets and variables ▸ Actions ▸ Secrets** → *New repository secret*:
+
+| Secret | Value |
+|--------|-------|
+| `APPLE_CERTIFICATE` | the base64 string from step 4 |
+| `APPLE_CERTIFICATE_PASSWORD` | the `.p12` export password |
+| `APPLE_SIGNING_IDENTITY` | `Developer ID Application: Your Name (TEAMID)` — the exact name from Keychain |
+| `APPLE_ID` | your Apple ID email |
+| `APPLE_PASSWORD` | the app-specific password from step 3 |
+| `APPLE_TEAM_ID` | your 10-char Team ID |
+
+**Settings ▸ Secrets and variables ▸ Actions ▸ Variables** → *New repository variable*:
+
+| Variable | Value |
+|----------|-------|
+| `ENABLE_APPLE_SIGNING` | `true` |
+
+That's it. The next `feat:` / `fix:` push to `main` runs the **“Build (Developer
+ID signed + notarised)”** step: `tauri build` signs the `.app`, submits the
+`.dmg` to Apple's notary service, waits, and staples the ticket. The GitHub
+Release then carries a notarised `.dmg` + `.app.zip`.
+
+---
+
+## Alternative: App Store Connect API key (instead of Apple ID + password)
+
+If you prefer an API key for notarisation:
+
+1. App Store Connect ▸ **Users and Access ▸ Integrations ▸ App Store Connect API**
+   ▸ generate a key with the **Developer** role ▸ download the `.p8` (once only).
+   Note the **Key ID** and **Issuer ID**.
+2. In the **“Build (Developer ID signed + notarised)”** step of
+   `.github/workflows/release.yml`, drop `APPLE_ID` / `APPLE_PASSWORD` and add:
+
+   ```yaml
+           APPLE_API_KEY: ${{ secrets.APPLE_API_KEY }}          # Key ID
+           APPLE_API_ISSUER: ${{ secrets.APPLE_API_ISSUER }}    # Issuer ID
+           APPLE_API_KEY_PATH: ${{ github.workspace }}/AuthKey.p8
+   ```
+
+   and a preceding step that writes the key:
+   `printf '%s' "${{ secrets.APPLE_API_KEY_CONTENT }}" > "$GITHUB_WORKSPACE/AuthKey.p8"`.
+
+Tauri uses the API key when `APPLE_API_KEY` is set.
+
+---
+
+## Verify a build
+
+```bash
+codesign -dv --verbose=4 /Applications/QClean.app     # Authority=Developer ID Application: …
+spctl -a -vvv -t install /Applications/QClean.app     # accepted  source=Notarized Developer ID
+xcrun stapler validate /Applications/QClean.app       # The validate action worked!
+```
+
+## Local signed build (optional)
+
+```bash
+export APPLE_SIGNING_IDENTITY="Developer ID Application: Your Name (TEAMID)"
+export APPLE_ID="you@example.com"
+export APPLE_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="AB12CD34EF"
+npm run tauri build -- --target universal-apple-darwin --config '{"bundle":{"createUpdaterArtifacts":false}}'
+```
+
+The `--config` override skips producing a signed updater artifact, which
+needs the *separate* `TAURI_SIGNING_PRIVATE_KEY` from
+[auto-update](release-process.md#auto-update) — irrelevant if you're just
+testing Apple signing/notarisation locally. Drop the override (and export
+`TAURI_SIGNING_PRIVATE_KEY`/`_PASSWORD` instead) to test that too.
+
+## Never commit
+
+The `.p12`, `.p8`, CSR, passwords or Team-scoped credentials. They live only in
+GitHub Secrets.

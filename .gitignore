@@ -1,0 +1,39 @@
+# --- OS ---
+.DS_Store
+*.swp
+
+# --- Node / frontend ---
+node_modules
+/build
+/.svelte-kit
+/package
+/coverage
+.env
+.env.*
+!.env.example
+vite.config.js.timestamp-*
+vite.config.ts.timestamp-*
+
+# --- Rust / Tauri ---
+/src-tauri/target
+/src-tauri/gen/schemas
+/target
+
+# --- Tooling ---
+*.tsbuildinfo
+.eslintcache
+
+# --- Scratch ---
+*.scaffold
+/dist-artifacts
+/RELEASE_NOTES.md
+
+# --- Signing material — NEVER commit (see docs/signing.md) ---
+docs/sign/
+/private_keys/
+*.p12
+*.p8
+*.cer
+*.certSigningRequest
+*.mobileprovision
+*.provisionprofile

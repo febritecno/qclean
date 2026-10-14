@@ -1,0 +1,43 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Green-tinted off-black tile -->
+    <linearGradient id="bg" x1="200" y1="96" x2="824" y2="928" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#16302A"/>
+      <stop offset="1" stop-color="#08110F"/>
+    </linearGradient>
+
+    <!-- A single light, upper left, in the accent's hue -->
+    <radialGradient id="light" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse"
+      gradientTransform="translate(300 230) rotate(50) scale(560 420)">
+      <stop stop-color="#3ECFA2" stop-opacity="0.30"/>
+      <stop offset="1" stop-color="#3ECFA2" stop-opacity="0"/>
+    </radialGradient>
+
+    <linearGradient id="mark" x1="300" y1="290" x2="740" y2="760" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#7BE6C4"/>
+      <stop offset="1" stop-color="#2FBF93"/>
+    </linearGradient>
+
+    <filter id="shadow" x="180" y="180" width="700" height="700" filterUnits="userSpaceOnUse">
+      <feDropShadow dx="0" dy="16" stdDeviation="22" flood-color="#020705" flood-opacity="0.55"/>
+    </filter>
+  </defs>
+
+  <!-- App icon background -->
+  <rect x="96" y="96" width="832" height="832" rx="218" fill="url(#bg)"/>
+  <rect x="96" y="96" width="832" height="832" rx="218" fill="url(#light)"/>
+
+  <!-- Lit top edge -->
+  <rect x="98.5" y="98.5" width="827" height="827" rx="215.5"
+        stroke="#A7F3D9" stroke-opacity="0.16" stroke-width="5"/>
+
+  <!-- The Q: a ring, with a tail that crosses it and sweeps outward -->
+  <g filter="url(#shadow)">
+    <circle cx="488" cy="488" r="200" stroke="url(#mark)" stroke-width="88"/>
+    <path d="M538 538 L752 752" stroke="url(#mark)" stroke-width="88" stroke-linecap="round"/>
+  </g>
+
+  <!-- One sparkle: what is left after cleaning -->
+  <path d="M770 222 L790 276 L844 296 L790 316 L770 370 L750 316 L696 296 L750 276 Z"
+        fill="#EAFBF4"/>
+</svg>

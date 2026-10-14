@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>QClean — motion</title>
+<!--
+	QClean promo loop, 9 s, 16:9. Built with the bang-motion rules:
+	one world and one camera (no fading sections), every frame a pure function
+	of the timeline's time, autoplay + loop, no on-screen player.
+	R restarts, Space pauses. ?debug=1 shows a scrubber. ?clean=1 holds for export
+	(scripts/promo-gif.mjs drives window.__seek).
+-->
+<style>
+	@font-face { font-family: Outfit; src: url(outfit.woff2) format('woff2'); font-weight: 100 900; }
+	@font-face { font-family: 'Geist Mono'; src: url(geist-mono.woff2) format('woff2'); font-weight: 100 900; }
+	:root { --bg: #08110f; --ink: #e8edeb; --muted: #98a5a0; --line: #23302b; --accent: #3ecfa2; }
+	* { box-sizing: border-box; margin: 0; }
+	html, body { height: 100%; background: var(--bg); overflow: hidden; }
+	#stage { position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px; transform-origin: 0 0;
+		overflow: hidden; background: var(--bg); color: var(--ink); font-family: Outfit, system-ui, sans-serif; }
+	/* background: tinted base, one accent light, one neutral field, grain */
+	.light { position: absolute; border-radius: 50%; filter: blur(120px); }
+	#lightA { width: 1100px; height: 1100px; left: -380px; top: -420px; background: var(--accent); opacity: .22; }
+	#lightB { width: 1300px; height: 1300px; right: -500px; bottom: -620px; background: #6f8f84; opacity: .16; }
+	#grain { position: absolute; inset: 0; opacity: .5; mix-blend-mode: overlay;
+		background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .5 0 0 0 0 .5 0 0 0 0 .5 0 0 0 .8 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+	#world { position: absolute; inset: 0; transform-origin: 0 0; will-change: transform; }
+	.chip { position: absolute; padding: 16px 26px; border-radius: 16px; border: 2px solid var(--line);
+		background: #111917; font: 500 34px 'Geist Mono', monospace; letter-spacing: -.02em; color: var(--muted);
+		white-space: nowrap; box-shadow: 0 18px 40px -22px #000; }
+	.chip b { font-weight: 500; color: var(--ink); margin-left: 14px; }
+	#ring { position: absolute; left: 1340px; top: 500px; width: 0; height: 0; }
+	#ringSvg { position: absolute; left: -260px; top: -260px; overflow: visible; }
+	#sweep { position: absolute; left: -236px; top: -236px; width: 472px; height: 472px; border-radius: 50%;
+		background: conic-gradient(from 0deg, transparent 0 250deg, rgb(62 207 162 / .04) 270deg, rgb(62 207 162 / .42) 358deg, transparent 360deg);
+		-webkit-mask-image: radial-gradient(circle, transparent 0 30%, #000 32%); mask-image: radial-gradient(circle, transparent 0 30%, #000 32%); }
+	.pulse { position: absolute; left: -240px; top: -240px; width: 480px; height: 480px; border-radius: 50%; border: 3px solid var(--accent); }
+	#count { position: absolute; left: -240px; top: -64px; width: 480px; text-align: center;
+		font: 500 104px/1 'Geist Mono', monospace; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+	#countLabel { position: absolute; left: -240px; top: 56px; width: 480px; text-align: center; font-size: 34px; color: var(--muted); }
+	#check { position: absolute; left: -110px; top: -110px; }
+	#ticks { position: absolute; left: 1040px; top: 850px; width: 600px; height: 64px; display: flex; gap: 6px; }
+	#ticks i { flex: 1; border-radius: 4px; background: var(--line); transform: scaleY(.55); }
+	#ticksLabel { position: absolute; left: 1040px; top: 930px; width: 600px; display: flex; justify-content: space-between;
+		font-size: 30px; color: var(--muted); font-variant-numeric: tabular-nums; }
+	/* text lives outside the camera rig so a push never crops it */
+	.say { position: absolute; font-weight: 550; letter-spacing: -.035em; line-height: 1.04; }
+	.say span { display: inline-block; white-space: pre; will-change: transform, filter; }
+	#say1 { left: 140px; top: 372px; width: 780px; font-size: 112px; }
+	#say2 { left: 140px; top: 150px; width: 760px; font-size: 72px; }
+	#gain { position: absolute; left: 132px; top: 560px; font: 500 236px/1 'Geist Mono', monospace; letter-spacing: -.06em;
+		font-variant-numeric: tabular-nums; min-width: 900px; }
+	#gain small { font: 500 96px 'Geist Mono', monospace; letter-spacing: -.03em; color: var(--accent); margin-left: 18px; }
+	#gainLabel { position: absolute; left: 144px; top: 812px; font-size: 44px; color: var(--muted); }
+	#brand { position: absolute; left: 140px; top: 120px; display: flex; align-items: center; gap: 22px; font-size: 52px; font-weight: 600; letter-spacing: -.03em; }
+	#debug { position: fixed; left: 12px; right: 12px; bottom: 12px; display: none; gap: 12px; align-items: center; font: 14px monospace; color: #fff; }
+	#debug input { flex: 1; }
+</style>
+</head>
+<body>
+<div id="stage">
+	<div class="light" id="lightA"></div>
+	<div class="light" id="lightB"></div>
+
+	<div id="world">
+		<div id="chips"></div>
+		<div id="ticks"></div>
+		<div id="ticksLabel"><span id="usedPct">86% used</span><span>disk</span></div>
+		<div id="ring">
+			<div class="pulse" id="pulse1"></div>
+			<div class="pulse" id="pulse2"></div>
+			<div id="sweep"></div>
+			<svg id="ringSvg" width="520" height="520" viewBox="0 0 520 520" fill="none">
+				<circle cx="260" cy="260" r="244" stroke="#23302b" stroke-width="10" />
+				<circle id="arc" cx="260" cy="260" r="244" stroke="#3ecfa2" stroke-width="10" stroke-linecap="round"
+					transform="rotate(-90 260 260)" stroke-dasharray="1533" stroke-dashoffset="1533" />
+			</svg>
+			<div id="count">0</div>
+			<div id="countLabel">items found</div>
+			<svg id="check" width="220" height="220" viewBox="0 0 24 24" fill="none">
+				<path id="checkPath" d="M4.5 12.5l5 5L19.5 7" stroke="#3ecfa2" stroke-width="2.2" stroke-linecap="round"
+					stroke-linejoin="round" stroke-dasharray="24" stroke-dashoffset="24" />
+			</svg>
+		</div>
+	</div>
+
+	<div class="say" id="say1"></div>
+	<div class="say" id="say2"></div>
+	<div id="gain"><span id="gainNum">0.0</span><small>GB</small></div>
+	<div id="gainLabel">back on your disk</div>
+	<div id="brand">
+		<svg width="64" height="64" viewBox="96 96 832 832" fill="none">
+			<rect x="96" y="96" width="832" height="832" rx="218" fill="#16302a" />
+			<circle cx="488" cy="488" r="200" stroke="#3ecfa2" stroke-width="88" />
+			<path d="M538 538 L752 752" stroke="#3ecfa2" stroke-width="88" stroke-linecap="round" />
+		</svg>
+		QClean
+	</div>
+
+	<div id="grain"></div>
+</div>
+<div id="debug"><span id="clock">0.00</span><input id="scrub" type="range" min="0" max="9" step="0.01" value="0" /></div>
+
+<script src="gsap.min.js"></script>
+<script>
+const DUR = 9;
+const RING = { x: 1340, y: 500 };
+const $ = (id) => document.getElementById(id);
+const params = new URLSearchParams(location.search);
+
+// ---- build the world -------------------------------------------------------
+const CHIPS = [
+	['node_modules', '4.1 GB', 960, 170], ['Caches', '6.8 GB', 1470, 150], ['.DS_Store', '2 KB', 1000, 690],
+	['DerivedData', '5.2 GB', 1430, 700], ['build', '1.3 GB', 1590, 330], ['__pycache__', '310 MB', 930, 430],
+	['.next', '920 MB', 1250, 70], ['dist', '640 MB', 1620, 560], ['Logs', '1.1 GB', 1230, 760],
+	['target', '2.9 GB', 1560, 250]
+];
+const chips = CHIPS.map(([name, size, x, y], i) => {
+	const el = document.createElement('div');
+	el.className = 'chip';
+	el.innerHTML = `${name}<b>${size}</b>`;
+	el.style.left = x + 'px';
+	el.style.top = y + 'px';
+	$('chips').appendChild(el);
+	return { el, x, y, phase: i * 1.7 };
+});
+const TICKS = 40;
+const ticks = Array.from({ length: TICKS }, () => $('ticks').appendChild(document.createElement('i')));
+
+function words(id, text) {
+	const host = $(id);
+	return text.split(' ').map((w, i, all) => {
+		const span = document.createElement('span');
+		span.textContent = w + (i < all.length - 1 ? ' ' : '');
+		host.appendChild(span);
+		return span;
+	});
+}
+const say1 = words('say1', 'Your disk is full of things you can lose');
+const say2 = words('say2', 'It shows you the list first');
+
+// ---- state driven by the timeline (never by the clock) ---------------------
+const state = { cam: 1, camX: 0, camY: 0, used: 0, found: 0, gain: 0, pct: 0, mode: 0 };
+const fmt = new Intl.NumberFormat('en-US');
+
+function paint() {
+	const t = tl.time();
+	// camera: scale about the ring, then offset
+	const s = state.cam;
+	$('world').style.transform =
+		`translate(${RING.x - RING.x * s + state.camX}px, ${RING.y - RING.y * s + state.camY}px) scale(${s})`;
+	// chips breathe on a sine of timeline time while they are loose
+	for (const c of chips) {
+		const k = c.pull ?? 0;
+		const bob = (1 - k) * Math.sin(t * 1.3 + c.phase) * 9;
+		const x = (RING.x - c.x - 90) * k;
+		const y = (RING.y - c.y - 34) * k + bob;
+		c.el.style.transform = `translate(${x}px, ${y}px) scale(${(c.pop ?? 0) * (1 - 0.9 * k)})`;
+		c.el.style.opacity = (c.pop ?? 0) * Math.pow(1 - k, 1.4);
+	}
+	const lit = Math.round(state.used * TICKS);
+	ticks.forEach((el, i) => {
+		const on = i < lit;
+		el.style.background = on ? '#3ecfa2' : '#23302b';
+		el.style.transform = `scaleY(${on ? 1 : 0.55})`;
+	});
+	$('usedPct').textContent = Math.round(state.used * 100) + '% used';
+	$('count').textContent = state.mode < 0.5 ? fmt.format(Math.round(state.found)) : Math.round(state.pct * 100) + '%';
+	$('countLabel').textContent = state.mode < 0.5 ? 'items found' : 'removed';
+	$('arc').setAttribute('stroke-dashoffset', 1533 * (1 - state.pct));
+	$('gainNum').textContent = state.gain.toFixed(1);
+	if (debugOn) { $('clock').textContent = t.toFixed(2); $('scrub').value = t; }
+}
+
+// ---- timeline --------------------------------------------------------------
+const tl = gsap.timeline({ paused: true, onUpdate: paint, onComplete: () => tl.play(0) });
+gsap.defaults({ ease: 'power3.out' });
+
+// background never rests: the lights travel for the whole loop
+tl.fromTo('#lightA', { x: 0, y: 0, scale: 1 }, { x: 520, y: 260, scale: 1.25, duration: DUR, ease: 'sine.inOut' }, 0);
+tl.fromTo('#lightB', { x: 0, y: 0, scale: 1 }, { x: -420, y: -300, scale: 0.85, duration: DUR, ease: 'sine.inOut' }, 0);
+
+gsap.set(['#sweep', '.pulse', '#check', '#gain', '#gainLabel', '#brand', '#count', '#countLabel'], { opacity: 0 });
+gsap.set('#ringSvg', { opacity: 0, scale: 0.8, transformOrigin: '50% 50%' });
+
+// Act 1 — the claim: a disk full of loose things
+chips.forEach((c, i) => tl.fromTo(c, { pop: 0 }, { pop: 1, duration: 0.6, ease: 'back.out(1.8)' }, 0.05 + i * 0.06));
+tl.fromTo(say1, { yPercent: 70, opacity: 0, filter: 'blur(14px)' },
+	{ yPercent: 0, opacity: 1, filter: 'blur(0px)', duration: 0.7, stagger: 0.055 }, 0.15);
+tl.fromTo(state, { used: 0 }, { used: 0.86, duration: 1.1, ease: 'power2.out' }, 0.3);
+
+// Act 2 — the way: the camera closes on the scanner, which pulls everything in
+tl.to(say1, { x: -160, opacity: 0, filter: 'blur(18px)', duration: 0.45, stagger: 0.02, ease: 'power2.in' }, 1.75);
+tl.to(state, { cam: 1.26, camX: -120, camY: -40, duration: 1.0, ease: 'power3.inOut' }, 1.8);
+tl.to('#ringSvg', { opacity: 1, scale: 1, duration: 0.6, ease: 'back.out(1.6)' }, 1.95);
+tl.to(['#count', '#countLabel'], { opacity: 1, duration: 0.4 }, 2.1);
+tl.to('#sweep', { opacity: 1, duration: 0.3 }, 2.1);
+tl.fromTo('#sweep', { rotation: 0 }, { rotation: 900, duration: 2.5, ease: 'none' }, 2.1);
+tl.fromTo('#pulse1', { scale: 0.6, opacity: 0.7 }, { scale: 1.25, opacity: 0, duration: 1.2, ease: 'power1.out', repeat: 1, immediateRender: false }, 2.15);
+tl.fromTo('#pulse2', { scale: 0.6, opacity: 0.7 }, { scale: 1.25, opacity: 0, duration: 1.2, ease: 'power1.out', repeat: 1, immediateRender: false }, 2.75);
+chips.forEach((c, i) => tl.fromTo(c, { pull: 0 }, { pull: 1, duration: 0.7, ease: 'power3.in' }, 2.3 + i * 0.16));
+tl.to(state, { found: 1284, duration: 2.0, ease: 'power1.inOut' }, 2.35);
+tl.fromTo(say2, { yPercent: 60, opacity: 0, filter: 'blur(12px)' },
+	{ yPercent: 0, opacity: 1, filter: 'blur(0px)', duration: 0.6, stagger: 0.05 }, 2.7);
+
+// Act 3 — the result: the ring empties the disk, the camera lets go
+tl.to('#sweep', { opacity: 0, duration: 0.3 }, 4.55);
+tl.to(say2, { y: -70, opacity: 0, filter: 'blur(14px)', duration: 0.4, stagger: 0.02, ease: 'power2.in' }, 4.5);
+tl.to(state, { mode: 1, duration: 0.01 }, 4.75);
+tl.to(state, { pct: 1, duration: 1.6, ease: 'power2.inOut' }, 4.8);
+tl.to(state, { used: 0.52, duration: 1.6, ease: 'power2.inOut' }, 4.8);
+tl.to(state, { cam: 1.1, camX: 40, camY: 0, duration: 1.8, ease: 'power2.inOut' }, 4.7);
+tl.fromTo(['#gain', '#gainLabel'], { opacity: 0, y: 50, filter: 'blur(12px)' },
+	{ opacity: 1, y: 0, filter: 'blur(0px)', duration: 0.7, stagger: 0.08 }, 4.9);
+tl.to(state, { gain: 23.4, duration: 1.5, ease: 'power2.out' }, 4.95);
+// the one special moment: the count gives way to a drawn check
+tl.to(['#count', '#countLabel'], { opacity: 0, scale: 0.8, duration: 0.3, ease: 'power2.in' }, 6.45);
+tl.to('#check', { opacity: 1, duration: 0.1 }, 6.6);
+tl.to('#checkPath', { attr: { 'stroke-dashoffset': 0 }, duration: 0.6, ease: 'power3.out' }, 6.6);
+tl.fromTo('#ringSvg', { scale: 1 }, { scale: 1.06, duration: 0.25, yoyo: true, repeat: 1, ease: 'power2.out' }, 6.6);
+tl.fromTo('#brand', { opacity: 0, x: -40, filter: 'blur(10px)' }, { opacity: 1, x: 0, filter: 'blur(0px)', duration: 0.6 }, 6.9);
+// leave together, so the loop restarts on an empty frame
+tl.to(['#gain', '#gainLabel', '#brand', '#ring', '#ticks', '#ticksLabel'], { opacity: 0, duration: 0.4, ease: 'power2.in' }, DUR - 0.45);
+tl.set({}, {}, DUR);
+
+// ---- stage fit, controls, export hook --------------------------------------
+function fit() {
+	const k = Math.min(innerWidth / 1920, innerHeight / 1080);
+	$('stage').style.transform = `scale(${k}) translate(-50%, -50%)`;
+}
+addEventListener('resize', fit);
+fit();
+
+const debugOn = params.has('debug');
+if (debugOn) {
+	$('debug').style.display = 'flex';
+	$('scrub').addEventListener('input', (e) => { tl.pause(); tl.time(+e.target.value); });
+}
+addEventListener('keydown', (e) => {
+	if (e.key === 'r' || e.key === 'R') tl.play(0);
+	if (e.key === ' ') tl.paused(!tl.paused());
+});
+window.__seek = (t) => { tl.pause(); tl.time(t, false); paint(); };
+window.__duration = DUR;
+
+document.fonts.ready.then(() => {
+	paint();
+	document.documentElement.dataset.ready = '1';
+	// GIF export: film grain defeats GIF compression, so it is left out there.
+	if (params.has('clean')) $('grain').style.display = 'none';
+	else tl.play(0);
+});
+</script>
+</body>
+</html>

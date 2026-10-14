@@ -1,0 +1,137 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  frontend:
+    name: Frontend (check · lint · test)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: Type-check (svelte-check)
+        run: npm run check
+      - name: Format check (prettier)
+        run: npx prettier --check .
+      - name: Unit tests (vitest)
+        run: npm run test
+      - name: Static build
+        run: npm run build
+
+  rust:
+    name: Rust (fmt · clippy · test) — macOS
+    runs-on: macos-14
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: tests
+        run: cargo test --workspace
+
+  # The engine (rules, protected paths, scanner, deleter) has per-OS code and
+  # per-OS tests; it has no system dependencies, so it is tested everywhere.
+  core:
+    name: Core engine — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    defaults:
+      run:
+        working-directory: src-tauri
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: clippy
+        run: cargo clippy -p qclean-core --all-targets -- -D warnings
+      - name: tests
+        run: cargo test -p qclean-core
+
+  tauri-build:
+    name: Tauri build validation — ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            args: --target aarch64-apple-darwin --bundles app
+          - os: ubuntu-22.04
+            args: --bundles deb
+          - os: windows-latest
+            args: --bundles nsis
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - name: Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+      - run: npm install --no-audit --no-fund
+      # createUpdaterArtifacts is on in tauri.conf.json for real releases, which
+      # needs TAURI_SIGNING_PRIVATE_KEY — unavailable here for fork PRs, and
+      # beside the point anyway: this job only validates the app still builds.
+      - name: Build app bundle
+        shell: bash
+        run: npm run tauri build -- ${{ matrix.args }} --config '{"bundle":{"createUpdaterArtifacts":false}}'
+
+  security:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm install --no-audit --no-fund
+      - name: npm audit (production, high+)
+        run: npm audit --omit=dev --audit-level=high
+      - uses: dtolnay/rust-toolchain@stable
+      - name: cargo-audit
+        run: |
+          cargo install cargo-audit --locked
+          cd src-tauri && cargo audit

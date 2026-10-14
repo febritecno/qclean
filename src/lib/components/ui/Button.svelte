@@ -1,0 +1,66 @@
+<script lang="ts">
+	import type { Snippet } from 'svelte';
+	import type { HTMLButtonAttributes } from 'svelte/elements';
+	import { cn } from '$lib/utils/cn';
+
+	type Variant = 'brand' | 'danger' | 'ghost' | 'subtle';
+	type Size = 'sm' | 'md' | 'lg';
+
+	let {
+		variant = 'brand',
+		size = 'md',
+		class: klass = '',
+		type = 'button',
+		loading = false,
+		children,
+		...rest
+	}: {
+		variant?: Variant;
+		size?: Size;
+		class?: string;
+		type?: HTMLButtonAttributes['type'];
+		loading?: boolean;
+		children: Snippet;
+	} & HTMLButtonAttributes = $props();
+
+	const base =
+		'no-drag relative inline-flex select-none items-center justify-center gap-2 rounded-xl font-medium transition duration-150 ease-out active:scale-[0.97] disabled:pointer-events-none disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand/50 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-2';
+
+	const sizes: Record<Size, string> = {
+		sm: 'h-8 px-3.5 text-[0.8rem]',
+		md: 'h-10 px-5 text-sm',
+		lg: 'h-12 px-6 text-[0.95rem]'
+	};
+
+	const variants: Record<Variant, string> = {
+		brand:
+			'gradient-brand shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_8px_20px_-12px_rgb(var(--brand)/0.9)] hover:brightness-[1.07]',
+		danger:
+			'gradient-danger text-white shadow-[inset_0_1px_0_rgb(255_255_255/0.18),0_8px_20px_-12px_rgb(var(--danger)/0.9)] hover:brightness-[1.07]',
+		ghost: 'border border-line bg-surface-2 text-ink hover:bg-surface-3',
+		subtle: 'bg-brand-soft text-brand hover:brightness-[0.97]'
+	};
+</script>
+
+<button
+	{...rest}
+	{type}
+	class={cn(base, sizes[size], variants[variant], klass)}
+	disabled={loading || rest.disabled}
+	aria-busy={loading}
+>
+	<span
+		class="inline-flex items-center justify-center gap-2 transition-opacity duration-150"
+		class:opacity-0={loading}
+	>
+		{@render children()}
+	</span>
+	<span
+		class="absolute inset-0 grid place-items-center transition-opacity duration-150"
+		class:opacity-0={!loading}
+		aria-hidden="true"
+	>
+		<span class="h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"
+		></span>
+	</span>
+</button>

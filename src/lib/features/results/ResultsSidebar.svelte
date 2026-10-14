@@ -1,0 +1,78 @@
+<script lang="ts">
+	import Glyph from '$lib/components/Glyph.svelte';
+	import { GridViewIcon as LayoutGrid } from '@hugeicons/core-free-icons';
+	import { iconFor } from '$lib/constants/categories';
+	import type { Category } from '$lib/types/ipc';
+	import { formatBytesCompact, formatCount } from '$lib/utils/format';
+	import { cn } from '$lib/utils/cn';
+	import { scan } from '$lib/stores/scan.svelte';
+
+	const active = $derived(scan.filterCategory);
+
+	function pick(cat: Category | 'all') {
+		scan.filterCategory = cat;
+	}
+</script>
+
+<aside class="card flex w-60 shrink-0 flex-col p-4">
+	<h3 class="font-display text-base font-bold text-ink">Cleanup candidates</h3>
+	<p class="mb-3 text-xs text-muted">Pick a category to focus the list.</p>
+
+	<nav class="-mx-1 flex-1 space-y-0.5 overflow-y-auto pr-1">
+		<button
+			type="button"
+			onclick={() => pick('all')}
+			class={cn(
+				'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition',
+				active === 'all' ? 'font-medium text-on-brand' : 'text-ink hover:bg-surface-3'
+			)}
+		>
+			<span
+				class="gradient-brand absolute inset-0 rounded-xl shadow-tile transition-opacity duration-200"
+				class:opacity-0={active !== 'all'}
+				aria-hidden="true"
+			></span>
+			<Glyph icon={LayoutGrid} class="relative h-4 w-4 shrink-0" />
+			<span class="relative flex-1 text-left">All items</span>
+			<span
+				class={cn(
+					'relative text-xs tabular-nums',
+					active === 'all' ? 'text-on-brand/80' : 'text-faint'
+				)}
+			>
+				{formatCount(scan.totalCount)}
+			</span>
+		</button>
+
+		{#each scan.byCategory as bucket (bucket.key)}
+			{@const Icon = iconFor(bucket.key)}
+			{@const on = active === bucket.key}
+			<button
+				type="button"
+				onclick={() => pick(bucket.key)}
+				class={cn(
+					'relative flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-sm transition',
+					on ? 'font-medium text-on-brand' : 'text-ink hover:bg-surface-3'
+				)}
+			>
+				<span
+					class="gradient-brand absolute inset-0 rounded-xl shadow-tile transition-opacity duration-200"
+					class:opacity-0={!on}
+					aria-hidden="true"
+				></span>
+				<Glyph icon={Icon} class="relative h-4 w-4 shrink-0" />
+				<span class="relative flex-1 truncate text-left">{bucket.key}</span>
+				<span class={cn('relative text-xs tabular-nums', on ? 'text-on-brand/80' : 'text-faint')}>
+					{formatCount(bucket.count)}
+				</span>
+			</button>
+		{/each}
+	</nav>
+
+	<div class="mt-3 border-t border-line pt-3 text-xs text-muted">
+		<div class="flex justify-between">
+			<span>Reclaimable</span>
+			<span class="font-semibold text-ink">{formatBytesCompact(scan.totalBytes)}</span>
+		</div>
+	</div>
+</aside>

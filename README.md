@@ -61,7 +61,13 @@ Self‑contained desktop application:
   no longer installed: entries named after a bundle identifier when nothing
   from that vendor is installed, and `Application Support` folders named after
   an app when no installed app or macOS component has a similar name and
-  nothing inside has changed for 90 days. Never selected automatically.
+  nothing inside has changed for 90 days. It also lists `Group Containers`
+  of removed apps and launch agents in `~/Library/LaunchAgents` whose program no
+  longer exists. A dead launch agent, or a leftover privileged helper, no longer
+  counts as proof that its vendor is installed, nor does a browser's web-app
+  shortcut. A dead link in `~/.local/bin` into a removed `.app` is listed, and
+  data named after that app is listed at once instead of after 90 days. Never
+  selected automatically.
 - **Native, cancellable scanner** — parallel byte sizing, incremental streamed
   results, time‑based progress (at most every 100 ms, including while it sizes
   a large cache), per‑error tolerance, never follows symlinked directories,

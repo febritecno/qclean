@@ -34,6 +34,13 @@
 
 ## App leftovers — follow-ups
 
+- [x] Launch agents whose program is gone, and `Group Containers`, are listed; dead services no longer keep a vendor "installed"
+- [ ] Orphaned services under `/Library` (LaunchAgents, LaunchDaemons, PrivilegedHelperTools) are only used as a signal — removing them needs root, so they are not listed
+- [ ] `Group Containers` named `<TEAMID>.<Name>` without a reverse-DNS id (`UBF8T346G9.Office`) are skipped; a team-id → app map would be needed
+- [x] A dead link in `~/.local/bin` into a removed `.app` marks the app as removed (found: `Kiro CLI`); `org.chromium`/`io.github`/`com.github` match on three segments; web-app shortcuts do not count as the browser; `com.qtproject.plist`-style organisation-only prefs are accepted
+- [ ] The web-app shortcut `~/Applications/Chromium Apps.localized/Photopea.app` has no browser left (Thorium) and is itself a dead app — not listed
+- [ ] Dotfolders in `~` (`.wine`, `.qoder`, `.dartServer`, …) are not checked against installed apps
+
 - [ ] Apps installed outside `/Applications` and `~/Applications` are not seen, so their data can be listed as a leftover (seen on this Mac: `com.android.Emulator`)
 - [ ] Decide whether 90 days is the right age — at 60 days this Mac would also list `vmlx` and `kotlin`
 - [ ] "Unused apps" (installed but not opened for months) — not built; would use Spotlight's last-used date
